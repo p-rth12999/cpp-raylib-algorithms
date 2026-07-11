@@ -1,0 +1,33 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Raylib",
+            "type": "shell",
+            "command": "C:/mingw64/bin/g++.exe",
+            "args": [
+                "main.cpp",
+                "algorithms/*.cpp",
+                "-o",
+                "main.exe",
+                "-I",
+                "include",
+                "-I",
+                "algorithms",
+                "-L",
+                "lib",
+                "-lraylib",
+                "-lopengl32",
+                "-lgdi32",
+                "-lwinmm"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}
