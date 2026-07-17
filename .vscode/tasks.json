@@ -6,21 +6,27 @@
             "type": "shell",
             "command": "C:/mingw64/bin/g++.exe",
             "args": [
-                "main.cpp",
-                "algorithms/*.cpp",
-                "-o",
-                "main.exe",
-                "-I",
-                "include",
-                "-I",
-                "algorithms",
-                "-L",
-                "lib",
-                "-lraylib",
-                "-lopengl32",
-                "-lgdi32",
-                "-lwinmm"
-            ],
+                    "main.cpp",
+                    "algorithms/dda.cpp",
+                    "algorithms/bresenham_line.cpp",
+
+                    "-o",
+                    "main.exe",
+
+                    "-I",
+                    "include",
+
+                    "-I",
+                    "algorithms",
+
+                    "-L",
+                    "lib",
+
+                    "-lraylib",
+                    "-lopengl32",
+                    "-lgdi32",
+                    "-lwinmm"
+                ],
             "group": {
                 "kind": "build",
                 "isDefault": true
