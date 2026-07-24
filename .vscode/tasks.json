@@ -2,38 +2,80 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Raylib",
+            "label": "Build Main",
             "type": "shell",
             "command": "C:/mingw64/bin/g++.exe",
             "args": [
-                    "main.cpp",
-                    "algorithms/dda.cpp",
-                    "algorithms/bresenham_line.cpp",
-
-                    "-o",
-                    "main.exe",
-
-                    "-I",
-                    "include",
-
-                    "-I",
-                    "algorithms",
-
-                    "-L",
-                    "lib",
-
-                    "-lraylib",
-                    "-lopengl32",
-                    "-lgdi32",
-                    "-lwinmm"
-                ],
+                "main.cpp",
+                "algorithms/dda.cpp",
+                "algorithms/bresenham_line.cpp",
+                "-o", "main.exe",
+                "-I", "include",
+                "-I", "algorithms",
+                "-L", "lib",
+                "-lraylib", "-lopengl32", "-lgdi32", "-lwinmm"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": [
-                "$gcc"
-            ]
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Build Assignment 1 - DDA",
+            "type": "shell",
+            "command": "C:/mingw64/bin/g++.exe",
+            "args": [
+                "assignments/assignment1_dda.cpp",
+                "-o", "assignments/assignment1_dda.exe",
+                "-I", "include",
+                "-L", "lib",
+                "-lraylib", "-lopengl32", "-lgdi32", "-lwinmm"
+            ],
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
+    "label": "Build Assignment 2 - Bresenham Circle",
+    "type": "shell",
+    "command": "C:/mingw64/bin/g++.exe",
+    "args": [
+        "assignments/assignment2_bresenhamcircle.cpp",
+        "-o", "assignments/assignment2_bresenhamcircle.exe",
+        "-I", "include",
+        "-L", "lib",
+        "-lraylib", "-lopengl32", "-lgdi32", "-lwinmm"
+    ],
+    "group": "build",
+    "problemMatcher": ["$gcc"]
+},
+{
+    "label": "Build Game Version 0.2",
+    "type": "shell",
+    "command": "C:/mingw64/bin/g++.exe",
+    "args": [
+        "assignments/gameversion0.2.cpp",
+        "-o", "assignments/gameversion0.2.exe",
+        "-I", "include",
+        "-L", "lib",
+        "-lraylib", "-lopengl32", "-lgdi32", "-lwinmm"
+    ],
+    "group": "build",
+    "problemMatcher": ["$gcc"]
+},
+        {
+            "label": "Build Game Version 0.1",
+            "type": "shell",
+            "command": "C:/mingw64/bin/g++.exe",
+            "args": [
+                "assignments/gameversion0.1.cpp",
+                "-o", "assignments/gameversion0.1.exe",
+                "-I", "include",
+                "-L", "lib",
+                "-lraylib", "-lopengl32", "-lgdi32", "-lwinmm"
+            ],
+            "group": "build",
+            "problemMatcher": ["$gcc"]
         }
     ]
 }
