@@ -1,37 +1,9 @@
 #include "raylib.h"
+#include "dda.h"
+#include "transform2d.h"
 #include <cmath>
 #include <algorithm>
 using namespace std;
-
-// ============================================================
-// LINE ALGORITHM (Assignment 1 - DDA)
-// ============================================================
-void ddaLine(int x1, int y1, int x2, int y2, Color color)
-{
-    int delta_x = x2 - x1;
-    int delta_y = y2 - y1;
-
-    int length = max(abs(delta_x), abs(delta_y));
-
-    if (length == 0)
-    {
-        DrawPixel(x1, y1, color);
-        return;
-    }
-
-    float x = x1;
-    float y = y1;
-
-    float dx = delta_x / (float)length;
-    float dy = delta_y / (float)length;
-
-    for (int i = 0; i <= length; i++)
-    {
-        DrawPixel(round(x), round(y), color);
-        x += dx;
-        y += dy;
-    }
-}
 
 // ============================================================
 // COORDINATE SYSTEM
@@ -42,11 +14,6 @@ const int SW = 1900;
 const int SH = 1000;
 const int OX = SW / 2;
 const int OY = SH / 2;
-
-struct Vec2
-{
-    float x, y;
-};
 
 int toScreenX(float x) { return OX + (int)roundf(x); }
 int toScreenY(float y) { return OY - (int)roundf(y); }
@@ -114,29 +81,6 @@ void drawCross(Vec2 p, Color c)
     ddaLine(toScreenX(p.x), toScreenY(p.y) - 8, toScreenX(p.x), toScreenY(p.y) + 8, c);
 }
 
-// ============================================================
-// BASIC TRANSFORMATIONS (point -> point)
-// ============================================================
-// Translation:  x' = x + tx ,  y' = y + ty
-Vec2 translatePoint(Vec2 p, float tx, float ty)
-{
-    return { p.x + tx, p.y + ty };
-}
-
-// Scaling about a fixed point F:  x' = Fx + (x - Fx) * sx ,  y' = Fy + (y - Fy) * sy
-Vec2 scalePoint(Vec2 p, float sx, float sy, Vec2 f)
-{
-    return { f.x + (p.x - f.x) * sx, f.y + (p.y - f.y) * sy };
-}
-
-// Rotation about a pivot R:  x' = Rx + dx*cos - dy*sin ,  y' = Ry + dx*sin + dy*cos
-Vec2 rotatePoint(Vec2 p, float rad, Vec2 r)
-{
-    float c = cosf(rad), s = sinf(rad);
-    float dx = p.x - r.x, dy = p.y - r.y;
-    return { r.x + dx * c - dy * s, r.y + dx * s + dy * c };
-}
-
 float clampf(float v, float lo, float hi) { return max(lo, min(hi, v)); }
 
 // ============================================================
@@ -187,9 +131,9 @@ int main()
             for (int i = 0; i < NV; i++)
             {
                 Vec2 p = stages[s - 1][i];
-                if (op == 1) p = scalePoint(p, scale, scale, origin);
-                if (op == 2) p = rotatePoint(p, angleDeg * DEG2RAD, origin);
-                if (op == 3) p = translatePoint(p, tx, ty);
+                if (op == 1) p = scale2D(p, scale, scale, origin);
+                if (op == 2) p = rotate2D(p, angleDeg * DEG2RAD, origin);
+                if (op == 3) p = translate2D(p, tx, ty);
                 stages[s][i] = p;
             }
             labels[s] = (op == 1) ? "SCALE" : (op == 2) ? "ROTATE" : "TRANSLATE";

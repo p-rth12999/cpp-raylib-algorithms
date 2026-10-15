@@ -1,276 +1,18 @@
 #include "raylib.h"
+#include "canvas.h"
+#include "dda.h"
+#include "bresenham_circle.h"
+#include "fill.h"
 #include <cmath>
 #include <algorithm>
-#include <vector>
 using namespace std;
 
-// ============================================================
-// SOFTWARE FRAME BUFFER
-// Fill algorithms must READ pixels back, which raylib's
-// DrawPixel cannot do. So every algorithm writes into our own
-// pixel array, and the finished array is uploaded as a texture.
-// ============================================================
+// Algorithms used here live in algorithms/:
+//   canvas (pixel buffer)   dda, bresenham_circle (Assignments 1-2)
+//   fill: scanLineFill, floodFill4, boundaryFill4 (Assignment 4)
+
 const int W = 1900;
 const int H = 1000;
-
-vector<Color> fb(W * H);
-
-inline bool sameColor(Color a, Color b)
-{
-    return a.r == b.r && a.g == b.g && a.b == b.b;
-}
-
-inline void putPixel(int x, int y, Color c)
-{
-    if (x < 0 || x >= W || y < 0 || y >= H)
-        return;
-    fb[y * W + x] = c;
-}
-
-inline Color getPixel(int x, int y)
-{
-    return fb[y * W + x];
-}
-
-// ============================================================
-// LINE + CIRCLE ALGORITHMS (Assignments 1 & 2, now draw into fb)
-// ============================================================
-void ddaLine(int x1, int y1, int x2, int y2, Color color)
-{
-    int delta_x = x2 - x1;
-    int delta_y = y2 - y1;
-
-    int length = max(abs(delta_x), abs(delta_y));
-
-    if (length == 0)
-    {
-        putPixel(x1, y1, color);
-        return;
-    }
-
-    float x = x1;
-    float y = y1;
-
-    float dx = delta_x / (float)length;
-    float dy = delta_y / (float)length;
-
-    for (int i = 0; i <= length; i++)
-    {
-        putPixel(round(x), round(y), color);
-        x += dx;
-        y += dy;
-    }
-}
-
-void bresenham_circle(int xc, int yc, int r, Color color)
-{
-    int x = 0;
-    int y = r;
-
-    int Limit = 0;
-    int delta = 2 * (1 - r);
-
-    while (x <= y)
-    {
-        putPixel(xc + x, yc + y, color);
-        putPixel(xc - x, yc + y, color);
-        putPixel(xc + x, yc - y, color);
-        putPixel(xc - x, yc - y, color);
-
-        putPixel(xc + y, yc + x, color);
-        putPixel(xc - y, yc + x, color);
-        putPixel(xc + y, yc - x, color);
-        putPixel(xc - y, yc - x, color);
-
-        int ro_delta;
-
-        if (y <= Limit)
-            break;
-
-        if (delta < 0)
-        {
-            ro_delta = 2 * delta + 2 * y - 1;
-
-            if (ro_delta <= 0)
-            {
-                x++;
-                delta += 2 * x + 1;
-            }
-            else
-            {
-                x++;
-                y--;
-                delta += 2 * (x - y) + 2;
-            }
-        }
-        else
-        {
-            ro_delta = 2 * delta - 2 * x - 1;
-
-            if (ro_delta <= 0)
-            {
-                x++;
-                y--;
-                delta += 2 * (x - y) + 2;
-            }
-            else
-            {
-                y--;
-                delta += -2 * y + 1;
-            }
-        }
-    }
-}
-
-// ============================================================
-// FILL ALGORITHMS (NEW - Assignment 4)
-// All three are 4-connected and use an explicit stack / sorted
-// span list, so there is no recursion and no stack overflow.
-// ============================================================
-struct Vec2
-{
-    float x, y;
-};
-
-// FLOOD FILL: replace every connected pixel of oldColor with newColor
-void floodFill4(int sx, int sy, Color oldColor, Color newColor)
-{
-    if (sx < 0 || sx >= W || sy < 0 || sy >= H)
-        return;
-    if (!sameColor(getPixel(sx, sy), oldColor) || sameColor(oldColor, newColor))
-        return;
-
-    const int dx[4] = { 1, -1, 0, 0 };
-    const int dy[4] = { 0, 0, 1, -1 };
-
-    vector<int> stack;
-    putPixel(sx, sy, newColor);
-    stack.push_back(sy * W + sx);
-
-    while (!stack.empty())
-    {
-        int p = stack.back();
-        stack.pop_back();
-        int x = p % W;
-        int y = p / W;
-
-        for (int k = 0; k < 4; k++)
-        {
-            int nx = x + dx[k];
-            int ny = y + dy[k];
-
-            if (nx < 0 || nx >= W || ny < 0 || ny >= H)
-                continue;
-
-            if (sameColor(getPixel(nx, ny), oldColor))
-            {
-                putPixel(nx, ny, newColor);
-                stack.push_back(ny * W + nx);
-            }
-        }
-    }
-}
-
-// BOUNDARY FILL: spread until the boundaryColor is reached.
-// maxPixels is a safety net: if the outline leaks and the fill
-// grows larger than maxPixels, everything is undone.
-bool boundaryFill4(int sx, int sy, Color fillColor, Color boundaryColor, int maxPixels = 0)
-{
-    if (sx < 0 || sx >= W || sy < 0 || sy >= H)
-        return false;
-
-    Color start = getPixel(sx, sy);
-    if (sameColor(start, boundaryColor) || sameColor(start, fillColor))
-        return false;
-
-    const int dx[4] = { 1, -1, 0, 0 };
-    const int dy[4] = { 0, 0, 1, -1 };
-
-    vector<int> stack;
-    vector<int> changed;
-    vector<Color> before;
-
-    before.push_back(start);
-    changed.push_back(sy * W + sx);
-    putPixel(sx, sy, fillColor);
-    stack.push_back(sy * W + sx);
-
-    while (!stack.empty())
-    {
-        int p = stack.back();
-        stack.pop_back();
-        int x = p % W;
-        int y = p / W;
-
-        for (int k = 0; k < 4; k++)
-        {
-            int nx = x + dx[k];
-            int ny = y + dy[k];
-
-            if (nx < 0 || nx >= W || ny < 0 || ny >= H)
-                continue;
-
-            Color c = getPixel(nx, ny);
-            if (sameColor(c, boundaryColor) || sameColor(c, fillColor))
-                continue;
-
-            before.push_back(c);
-            changed.push_back(ny * W + nx);
-            putPixel(nx, ny, fillColor);
-            stack.push_back(ny * W + nx);
-
-            if (maxPixels > 0 && (int)changed.size() > maxPixels)
-            {
-                for (size_t i = 0; i < changed.size(); i++)
-                    fb[changed[i]] = before[i];
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-// SCAN-LINE FILL: for every row, find where the polygon edges cross it,
-// sort the crossings and fill between each pair. Works for concave polygons.
-void scanLineFill(const vector<Vec2>& poly, Color color)
-{
-    int n = (int)poly.size();
-    if (n < 3)
-        return;
-
-    float minY = poly[0].y, maxY = poly[0].y;
-    for (const Vec2& p : poly)
-    {
-        minY = min(minY, p.y);
-        maxY = max(maxY, p.y);
-    }
-
-    for (int y = (int)floorf(minY); y < (int)ceilf(maxY); y++)
-    {
-        vector<float> xs;
-
-        for (int i = 0; i < n; i++)
-        {
-            Vec2 a = poly[i];
-            Vec2 b = poly[(i + 1) % n];
-
-            if (a.y == b.y)
-                continue;
-            if (a.y > b.y)
-                swap(a, b);
-
-            // half-open rule [a.y, b.y) so shared vertices are counted once
-            if (y >= a.y && y < b.y)
-                xs.push_back(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
-        }
-
-        sort(xs.begin(), xs.end());
-
-        for (size_t k = 0; k + 1 < xs.size(); k += 2)
-            for (int x = (int)ceilf(xs[k]); x <= (int)floorf(xs[k + 1]); x++)
-                putPixel(x, y, color);
-    }
-}
 
 // ============================================================
 // CAR MODEL (local coords, origin = car centre)
@@ -396,7 +138,7 @@ void drawOutlines()
 
 void buildScene(bool fillsOn, FillTimes& ft)
 {
-    fill(fb.begin(), fb.end(), BLACK);
+    canvasClear(BLACK);
     ft = { 0, 0, 0 };
 
     double t0 = GetTime();
@@ -463,15 +205,12 @@ int main()
     InitWindow(W, H, "Game Version 0.4 - Colour Fill Techniques");
     SetTargetFPS(60);
 
-    Image img = GenImageColor(W, H, BLACK);
-    Texture2D tex = LoadTextureFromImage(img);
-    UnloadImage(img);
+    canvasEnable(W, H);
 
     bool fillsOn = true;
     FillTimes ft = { 0, 0, 0 };
 
     buildScene(fillsOn, ft);
-    UpdateTexture(tex, fb.data());
 
     while (!WindowShouldClose())
     {
@@ -479,12 +218,11 @@ int main()
         {
             fillsOn = !fillsOn;
             buildScene(fillsOn, ft);
-            UpdateTexture(tex, fb.data());
-        }
+                }
 
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawTexture(tex, 0, 0, WHITE);
+        canvasPresent(0, 0);
 
         /////////////////////////////////////////////////
         // HUD
@@ -500,7 +238,7 @@ int main()
         EndDrawing();
     }
 
-    UnloadTexture(tex);
+    canvasShutdown();
     CloseWindow();
     return 0;
 }

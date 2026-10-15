@@ -4,7 +4,12 @@
         {
             "label": "Run Current File",
             "type": "shell",
-            "command": "C:/mingw64/bin/g++.exe \"${file}\" -o \"bin/${fileBasenameNoExtension}.exe\" -I include -I algorithms -L lib -lraylib -lopengl32 -lgdi32 -lwinmm; if ($LASTEXITCODE -eq 0) { & \"bin/${fileBasenameNoExtension}.exe\" }",
+            "command": "powershell",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/run.ps1",
+                "${file}"
+            ],
             "group": { "kind": "build", "isDefault": true },
             "presentation": { "reveal": "always", "clear": true },
             "problemMatcher": ["$gcc"]
@@ -12,23 +17,15 @@
         {
             "label": "Build Current File",
             "type": "shell",
-            "command": "C:/mingw64/bin/g++.exe",
+            "command": "powershell",
             "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/run.ps1",
                 "${file}",
-                "-o", "bin/${fileBasenameNoExtension}.exe",
-                "-I", "include",
-                "-I", "algorithms",
-                "-L", "lib",
-                "-lraylib", "-lopengl32", "-lgdi32", "-lwinmm"
+                "-BuildOnly"
             ],
             "group": "build",
-            "problemMatcher": ["$gcc"]
-        },
-        {
-            "label": "Run Main",
-            "type": "shell",
-            "command": "C:/mingw64/bin/g++.exe main.cpp algorithms/dda.cpp algorithms/bresenham_line.cpp algorithms/bresenham_circle.cpp -o bin/main.exe -I include -I algorithms -L lib -lraylib -lopengl32 -lgdi32 -lwinmm; if ($LASTEXITCODE -eq 0) { & \"bin/main.exe\" }",
-            "group": "build",
+            "presentation": { "reveal": "always", "clear": true },
             "problemMatcher": ["$gcc"]
         }
     ]

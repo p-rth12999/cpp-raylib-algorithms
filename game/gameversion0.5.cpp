@@ -1,379 +1,25 @@
 #include "raylib.h"
+#include "canvas.h"
+#include "dda.h"
+#include "bresenham_circle.h"
+#include "transform2d.h"
+#include "fill.h"
+#include "clipping.h"
 #include <cmath>
 #include <algorithm>
 #include <vector>
 using namespace std;
 
-// ============================================================
-// SOFTWARE FRAME BUFFER
-// fb = what is shown this frame, bg = static background (sky, grass,
-// track, gate) built once. Every frame: fb = bg, draw moving things, upload.
-// ============================================================
+// Algorithms used here live in algorithms/:
+//   canvas (pixel buffer)   dda, bresenham_circle (Assignments 1-2)
+//   transform2d (Assignment 3)   fill (Assignment 4)   clipping (Assignment 5)
+
 const int W = 1900;
 const int H = 1000;
 
-vector<Color> fb(W * H);
-vector<Color> bg(W * H);
+vector<Color> bg;   // static background (sky, grass, road, gate), built once
 
-inline bool sameColor(Color a, Color b)
-{
-    return a.r == b.r && a.g == b.g && a.b == b.b;
-}
-
-inline void putPixel(int x, int y, Color c)
-{
-    if (x < 0 || x >= W || y < 0 || y >= H)
-        return;
-    fb[y * W + x] = c;
-}
-
-inline Color getPixel(int x, int y)
-{
-    return fb[y * W + x];
-}
-
-// ============================================================
-// LINE + CIRCLE ALGORITHMS (Assignments 1 & 2)
-// ============================================================
-void ddaLine(int x1, int y1, int x2, int y2, Color color)
-{
-    int delta_x = x2 - x1;
-    int delta_y = y2 - y1;
-
-    int length = max(abs(delta_x), abs(delta_y));
-
-    if (length == 0)
-    {
-        putPixel(x1, y1, color);
-        return;
-    }
-
-    float x = x1;
-    float y = y1;
-
-    float dx = delta_x / (float)length;
-    float dy = delta_y / (float)length;
-
-    for (int i = 0; i <= length; i++)
-    {
-        putPixel(round(x), round(y), color);
-        x += dx;
-        y += dy;
-    }
-}
-
-void bresenham_circle(int xc, int yc, int r, Color color)
-{
-    int x = 0;
-    int y = r;
-
-    int Limit = 0;
-    int delta = 2 * (1 - r);
-
-    while (x <= y)
-    {
-        putPixel(xc + x, yc + y, color);
-        putPixel(xc - x, yc + y, color);
-        putPixel(xc + x, yc - y, color);
-        putPixel(xc - x, yc - y, color);
-
-        putPixel(xc + y, yc + x, color);
-        putPixel(xc - y, yc + x, color);
-        putPixel(xc + y, yc - x, color);
-        putPixel(xc - y, yc - x, color);
-
-        int ro_delta;
-
-        if (y <= Limit)
-            break;
-
-        if (delta < 0)
-        {
-            ro_delta = 2 * delta + 2 * y - 1;
-
-            if (ro_delta <= 0)
-            {
-                x++;
-                delta += 2 * x + 1;
-            }
-            else
-            {
-                x++;
-                y--;
-                delta += 2 * (x - y) + 2;
-            }
-        }
-        else
-        {
-            ro_delta = 2 * delta - 2 * x - 1;
-
-            if (ro_delta <= 0)
-            {
-                x++;
-                y--;
-                delta += 2 * (x - y) + 2;
-            }
-            else
-            {
-                y--;
-                delta += -2 * y + 1;
-            }
-        }
-    }
-}
-
-// ============================================================
-// 2D TRANSFORMATIONS (Assignment 3)
-// ============================================================
-struct Vec2
-{
-    float x, y;
-};
-
-Vec2 translate2D(Vec2 p, float tx, float ty)
-{
-    return { p.x + tx, p.y + ty };
-}
-
-Vec2 scale2D(Vec2 p, float sx, float sy, Vec2 pivot)
-{
-    return { pivot.x + (p.x - pivot.x) * sx,
-             pivot.y + (p.y - pivot.y) * sy };
-}
-
-Vec2 rotate2D(Vec2 p, float angleRad, Vec2 pivot)
-{
-    float c = cosf(angleRad);
-    float s = sinf(angleRad);
-    float dx = p.x - pivot.x;
-    float dy = p.y - pivot.y;
-    return { pivot.x + dx * c - dy * s,
-             pivot.y + dx * s + dy * c };
-}
-
-// ============================================================
-// FILL ALGORITHMS (Assignment 4)
-// ============================================================
-void floodFill4(int sx, int sy, Color oldColor, Color newColor)
-{
-    if (sx < 0 || sx >= W || sy < 0 || sy >= H)
-        return;
-    if (!sameColor(getPixel(sx, sy), oldColor) || sameColor(oldColor, newColor))
-        return;
-
-    const int dx[4] = { 1, -1, 0, 0 };
-    const int dy[4] = { 0, 0, 1, -1 };
-
-    vector<int> stack;
-    putPixel(sx, sy, newColor);
-    stack.push_back(sy * W + sx);
-
-    while (!stack.empty())
-    {
-        int p = stack.back();
-        stack.pop_back();
-        int x = p % W;
-        int y = p / W;
-
-        for (int k = 0; k < 4; k++)
-        {
-            int nx = x + dx[k];
-            int ny = y + dy[k];
-
-            if (nx < 0 || nx >= W || ny < 0 || ny >= H)
-                continue;
-
-            if (sameColor(getPixel(nx, ny), oldColor))
-            {
-                putPixel(nx, ny, newColor);
-                stack.push_back(ny * W + nx);
-            }
-        }
-    }
-}
-
-// maxPixels: if the outline leaks and the fill grows bigger than this, it is undone
-bool boundaryFill4(int sx, int sy, Color fillColor, Color boundaryColor, int maxPixels = 0)
-{
-    if (sx < 0 || sx >= W || sy < 0 || sy >= H)
-        return false;
-
-    Color start = getPixel(sx, sy);
-    if (sameColor(start, boundaryColor) || sameColor(start, fillColor))
-        return false;
-
-    const int dx[4] = { 1, -1, 0, 0 };
-    const int dy[4] = { 0, 0, 1, -1 };
-
-    vector<int> stack;
-    vector<int> changed;
-    vector<Color> before;
-
-    before.push_back(start);
-    changed.push_back(sy * W + sx);
-    putPixel(sx, sy, fillColor);
-    stack.push_back(sy * W + sx);
-
-    while (!stack.empty())
-    {
-        int p = stack.back();
-        stack.pop_back();
-        int x = p % W;
-        int y = p / W;
-
-        for (int k = 0; k < 4; k++)
-        {
-            int nx = x + dx[k];
-            int ny = y + dy[k];
-
-            if (nx < 0 || nx >= W || ny < 0 || ny >= H)
-                continue;
-
-            Color c = getPixel(nx, ny);
-            if (sameColor(c, boundaryColor) || sameColor(c, fillColor))
-                continue;
-
-            before.push_back(c);
-            changed.push_back(ny * W + nx);
-            putPixel(nx, ny, fillColor);
-            stack.push_back(ny * W + nx);
-
-            if (maxPixels > 0 && (int)changed.size() > maxPixels)
-            {
-                for (size_t i = 0; i < changed.size(); i++)
-                    fb[changed[i]] = before[i];
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-void scanLineFill(const vector<Vec2>& poly, Color color)
-{
-    int n = (int)poly.size();
-    if (n < 3)
-        return;
-
-    float minY = poly[0].y, maxY = poly[0].y;
-    for (const Vec2& p : poly)
-    {
-        minY = min(minY, p.y);
-        maxY = max(maxY, p.y);
-    }
-
-    for (int y = (int)floorf(minY); y < (int)ceilf(maxY); y++)
-    {
-        vector<float> xs;
-
-        for (int i = 0; i < n; i++)
-        {
-            Vec2 a = poly[i];
-            Vec2 b = poly[(i + 1) % n];
-
-            if (a.y == b.y)
-                continue;
-            if (a.y > b.y)
-                swap(a, b);
-
-            if (y >= a.y && y < b.y)
-                xs.push_back(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
-        }
-
-        sort(xs.begin(), xs.end());
-
-        for (size_t k = 0; k + 1 < xs.size(); k += 2)
-            for (int x = (int)ceilf(xs[k]); x <= (int)floorf(xs[k + 1]); x++)
-                putPixel(x, y, color);
-    }
-}
-
-// ============================================================
-// LINE CLIPPING (NEW - Assignment 5)
-// Both algorithms clip a segment against the clip window and
-// report what happened, so the HUD can count the results.
-// ============================================================
-struct ClipWindow
-{
-    float xmin, ymin, xmax, ymax;
-};
-
-enum ClipResult { CLIP_REJECTED, CLIP_ACCEPTED, CLIP_CLIPPED };
-enum ClipMode   { MODE_COHEN, MODE_LIANG, MODE_OFF };
-
-// --- Cohen-Sutherland: 4-bit region codes (L R T B) ---
-int outcode(float x, float y, const ClipWindow& w)
-{
-    int code = 0;
-    if (x < w.xmin) code |= 1;        // LEFT
-    else if (x > w.xmax) code |= 2;   // RIGHT
-    if (y < w.ymin) code |= 4;        // TOP    (screen y grows downward)
-    else if (y > w.ymax) code |= 8;   // BOTTOM
-    return code;
-}
-
-ClipResult cohenSutherland(float& x1, float& y1, float& x2, float& y2, const ClipWindow& w)
-{
-    int c1 = outcode(x1, y1, w);
-    int c2 = outcode(x2, y2, w);
-
-    if ((c1 | c2) == 0)
-        return CLIP_ACCEPTED;           // trivially inside
-
-    while (true)
-    {
-        if ((c1 | c2) == 0)
-            return CLIP_CLIPPED;        // both ends now inside
-        if (c1 & c2)
-            return CLIP_REJECTED;       // both on the same outside side
-
-        int out = c1 ? c1 : c2;
-        float x, y;
-
-        if (out & 8)      { x = x1 + (x2 - x1) * (w.ymax - y1) / (y2 - y1); y = w.ymax; }
-        else if (out & 4) { x = x1 + (x2 - x1) * (w.ymin - y1) / (y2 - y1); y = w.ymin; }
-        else if (out & 2) { y = y1 + (y2 - y1) * (w.xmax - x1) / (x2 - x1); x = w.xmax; }
-        else              { y = y1 + (y2 - y1) * (w.xmin - x1) / (x2 - x1); x = w.xmin; }
-
-        if (out == c1) { x1 = x; y1 = y; c1 = outcode(x1, y1, w); }
-        else           { x2 = x; y2 = y; c2 = outcode(x2, y2, w); }
-    }
-}
-
-// --- Liang-Barsky: parametric  P(t) = P1 + t (P2 - P1),  t in [0,1] ---
-ClipResult liangBarsky(float& x1, float& y1, float& x2, float& y2, const ClipWindow& w)
-{
-    float dx = x2 - x1;
-    float dy = y2 - y1;
-
-    float p[4] = { -dx, dx, -dy, dy };
-    float q[4] = { x1 - w.xmin, w.xmax - x1, y1 - w.ymin, w.ymax - y1 };
-
-    float t0 = 0.0f, t1 = 1.0f;
-
-    for (int i = 0; i < 4; i++)
-    {
-        if (p[i] == 0)
-        {
-            if (q[i] < 0)
-                return CLIP_REJECTED;   // parallel and outside
-        }
-        else
-        {
-            float r = q[i] / p[i];
-            if (p[i] < 0) { if (r > t1) return CLIP_REJECTED; if (r > t0) t0 = r; }
-            else          { if (r < t0) return CLIP_REJECTED; if (r < t1) t1 = r; }
-        }
-    }
-
-    if (t0 == 0.0f && t1 == 1.0f)
-        return CLIP_ACCEPTED;
-
-    float nx1 = x1 + t0 * dx, ny1 = y1 + t0 * dy;
-    float nx2 = x1 + t1 * dx, ny2 = y1 + t1 * dy;
-    x1 = nx1; y1 = ny1; x2 = nx2; y2 = ny2;
-    return CLIP_CLIPPED;
-}
+enum ClipMode { MODE_COHEN, MODE_LIANG, MODE_OFF };
 
 ClipMode   clipMode = MODE_COHEN;
 ClipWindow clipWin  = { 40, 140, 1860, 950 };
@@ -505,7 +151,7 @@ void drawCar(const Car& car)
 // ============================================================
 void buildBackground()
 {
-    fill(fb.begin(), fb.end(), BLACK);
+    canvasClear(BLACK);
 
     // scan-line fills
     scanLineFill({ { 0, 0 }, { W - 1, 0 }, { W - 1, 50 }, { 0, 50 } }, SKYBLUE);
@@ -539,7 +185,7 @@ void buildBackground()
     // flood fill the road surface
     floodFill4(950, 950, BLACK, GRAY);
 
-    bg = fb;
+    bg = canvasSnapshot();
 }
 
 // ============================================================
@@ -649,9 +295,7 @@ int main()
     InitWindow(W, H, "Game Version 0.5 - Line Clipping + Gameplay");
     SetTargetFPS(60);
 
-    Image img = GenImageColor(W, H, BLACK);
-    Texture2D tex = LoadTextureFromImage(img);
-    UnloadImage(img);
+    canvasEnable(W, H);
 
     buildBackground();
 
@@ -795,7 +439,7 @@ int main()
         /////////////////////////////////////////////////
         // RENDER INTO THE FRAME BUFFER
         /////////////////////////////////////////////////
-        fb = bg;
+        canvasRestore(bg);
         clipStats[0] = clipStats[1] = clipStats[2] = 0;
 
         drawRoadMarkings(distance);
@@ -819,8 +463,6 @@ int main()
         ddaLine((int)clipWin.xmax, (int)clipWin.ymax, (int)clipWin.xmin, (int)clipWin.ymax, YELLOW);
         ddaLine((int)clipWin.xmin, (int)clipWin.ymax, (int)clipWin.xmin, (int)clipWin.ymin, YELLOW);
 
-        UpdateTexture(tex, fb.data());
-
         /////////////////////////////////////////////////
         // HUD
         /////////////////////////////////////////////////
@@ -830,7 +472,7 @@ int main()
 
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawTexture(tex, 0, 0, WHITE);
+        canvasPresent(0, 0);
 
         DrawText("SCORE", 90, 20, 50, WHITE);
         DrawText(TextFormat("%06d", score), 70, 90, 45, WHITE);
@@ -855,7 +497,7 @@ int main()
         EndDrawing();
     }
 
-    UnloadTexture(tex);
+    canvasShutdown();
     CloseWindow();
     return 0;
 }

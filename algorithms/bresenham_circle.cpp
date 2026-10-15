@@ -1,4 +1,5 @@
 #include "bresenham_circle.h"
+#include "canvas.h"
 
 void bresenham_circle(int xc, int yc, int r, Color color)
 {
@@ -10,16 +11,15 @@ void bresenham_circle(int xc, int yc, int r, Color color)
 
     while (x <= y)
     {
-        // 8-way symmetry
-        DrawPixel(xc + x, yc + y, color);
-        DrawPixel(xc - x, yc + y, color);
-        DrawPixel(xc + x, yc - y, color);
-        DrawPixel(xc - x, yc - y, color);
+        plot(xc + x, yc + y, color);
+        plot(xc - x, yc + y, color);
+        plot(xc + x, yc - y, color);
+        plot(xc - x, yc - y, color);
 
-        DrawPixel(xc + y, yc + x, color);
-        DrawPixel(xc - y, yc + x, color);
-        DrawPixel(xc + y, yc - x, color);
-        DrawPixel(xc - y, yc - x, color);
+        plot(xc + y, yc + x, color);
+        plot(xc - y, yc + x, color);
+        plot(xc + y, yc - x, color);
+        plot(xc - y, yc - x, color);
 
         int ro_delta;
 
